@@ -12,7 +12,7 @@
 #---------------------------------------------------------------
 
 #clear
-rebootDisconnect=true #only enable this if a reboot of the pi is needed on disconnect
+rebootDisconnect=false #only enable this if a reboot of the pi is needed on disconnect
 paID=""
 qPath=""
 user="pi"
@@ -45,15 +45,23 @@ connect() {
 	unmute
 
 	# Return Example: bluez_source.01_23_45_AB_CD_EF
-	bluezSource="$(su $user -c "pactl list" | grep -m 1 "Name: bluez_source" | cut -c 8-)"
-	echo "[Connected] Bluez Source: ${bluezSource}"
+    bluezSource="$(su $user -c 'pactl list' | grep -m 1 "Name: bluez_source" | cut -c 8-)"
+    echo "[Connected] Bluez Source: ${bluezSource}"
 
 	# Return Example: alsa_output.pci-0000_00_10.1.analog-stereo
-	alsaSink="$(su $user -c "pactl list" | grep -m 1 "Name: alsa_output" | cut -c 8-)"
+	alsaSink="$(su $user -c 'pactl list' | grep -m 1 'Name: alsa_output' | cut -c 8-)"
 	echo "[Connected] Alsa Sink: ${alsaSink}"
 
+    su $user -c "amixer set Master 100%"
+    su $user -c "pacmd set-sink-volume 1 65537"
+
+    sleep 1
+    cardid="$(su $user -c 'pactl list cards short' | grep bluez_card | cut -f1)"
+    prof="$(su $user -c 'pactl set-card-profile $cardid a2dp_source')"
+	echo "[Connected] pactl set card profile A2DP returned $prof"
+
 	# Return Example: 25
-	paID=$(su $user -c "pactl load-module module-loopback source=${bluezSource} sink=${alsaSink}")
+	paID=$(su $user -c "pactl load-module module-loopback source=${bluezSource} sink=${alsaSink} source_dont_move='true' sink_input_properties='media.role=music'")
 	echo "[Connected] pactl ID number: ${paID}"
 }
 
@@ -102,7 +110,7 @@ trap mute EXIT
 # Engage!
 main
 
-while :
+while [ 1 -lt 10 ];
 do
 	qPath="$(su $user -c 'pactl list' | grep -m 1 'Name: bluez_source' | cut -c 8-)"
 
